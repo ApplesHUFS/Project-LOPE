@@ -1,233 +1,85 @@
-"""Preprocessing entry point with cross-validation support.
+"""
+Simple preprocessing entry point for L2-ARCTIC (perceived-only).
 
-This script provides preprocessing for L2-ARCTIC dataset including
-extraction, error label generation, and cross-validation splits.
+- 우리가 만든 DatasetProcessor를 이용해서
+  wav, duration, spk_id, perceived_aligned, perceived_train_target, wrd
+  만 포함된 JSON을 생성한다.
+- 에러 라벨 생성, CV split, disjoint split 등은 전부 제외했다.
 """
 
 import argparse
 import logging
-import os
 from pathlib import Path
 
-from l2pa.preprocessing.generate_labels import add_error_labels_to_dataset
-from l2pa.preprocessing.preprocess_dataset import DatasetProcessor
-from l2pa.preprocessing.split_data import (
-    split_dataset_for_cv,
-    split_dataset_disjoint_text
-)
-
-
-def verify_phoneme_mapping_exists(data_dir: str) -> bool:
-    """Verifies that phoneme mapping file exists.
-    
-    Args:
-        data_dir: Directory containing the phoneme mapping file.
-    
-    Returns:
-        True if mapping file exists, False otherwise.
-    """
-    phoneme_map_path = Path(data_dir) / 'phoneme_to_id.json'
-    if not phoneme_map_path.exists():
-        print(f"Error: Phoneme mapping not found at {phoneme_map_path}")
-        print("Please run download_dataset.sh to download the mapping file")
-        return False
-    return True
+from LopeScript.DataProc.preprocessing import DatasetProcessor
 
 
 def main():
-    """Main preprocessing function."""
     parser = argparse.ArgumentParser(
-        description='L2-ARCTIC Dataset Preprocessing with Cross-Validation'
+        description="L2-ARCTIC perceived-only preprocessing"
     )
-    subparsers = parser.add_subparsers(dest='command', help='Preprocessing command')
-    
-    extract_parser = subparsers.add_parser(
-        'extract', help='Extract phoneme data from L2-ARCTIC'
+
+    # 굳이 서브커맨드 나누지 말고, 단일 엔트리만 사용
+    parser.add_argument(
+        "--data_root",
+        type=str,
+        default="data/l2arctic",
+        help="L2-ARCTIC dataset root directory "
+             "(speaker 폴더들이 있는 최상위 경로)",
     )
-    extract_parser.add_argument(
-        '--data_root', type=str, default='data/l2arctic',
-        help='L2-ARCTIC dataset root directory'
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="data/preprocessed_perceived.json",
+        help="Output JSON file path",
     )
-    extract_parser.add_argument(
-        '--output', type=str, default='data/preprocessed.json',
-        help='Output JSON file path'
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print more detailed logging",
     )
-    
-    labels_parser = subparsers.add_parser(
-        'labels', help='Generate error labels'
-    )
-    labels_parser.add_argument(
-        '--input', type=str, default='data/preprocessed.json',
-        help='Input JSON file'
-    )
-    labels_parser.add_argument(
-        '--output', type=str, default='data/processed_with_error.json',
-        help='Output JSON file'
-    )
-    
-    split_parser = subparsers.add_parser(
-        'split', help='Split dataset for cross-validation'
-    )
-    split_parser.add_argument(
-        '--input', type=str, default='data/processed_with_error.json',
-        help='Input JSON file'
-    )
-    split_parser.add_argument(
-        '--output_dir', type=str, default='data',
-        help='Output directory'
-    )
-    split_parser.add_argument(
-        '--test_speakers', nargs='+',
-        default=['TLV', 'NJS', 'TNI', 'TXHC', 'ZHAA', 'YKWK'],
-        help='Speaker IDs for test set'
-    )
-    
-    disjoint_parser = subparsers.add_parser(
-        'split_disjoint', 
-        help='Split dataset with disjoint transcripts between test and train/val'
-    )
-    disjoint_parser.add_argument(
-        '--input', type=str, default='data/processed_with_error.json',
-        help='Input JSON file'
-    )
-    disjoint_parser.add_argument(
-        '--output_dir', type=str, default='data',
-        help='Output directory'
-    )
-    disjoint_parser.add_argument(
-        '--test_speakers', nargs='+',
-        default=['TLV', 'NJS', 'TNI', 'TXHC', 'ZHAA', 'YKWK'],
-        help='Speaker IDs for test set'
-    )
-    disjoint_parser.add_argument(
-        '--val_speaker', type=str, default='MBMPS',
-        help='Speaker ID for validation set'
-    )
-    disjoint_parser.add_argument(
-        '--num_test_transcripts', type=int, default=100,
-        help='Number of unique transcripts for test set'
-    )
-    
-    all_parser = subparsers.add_parser(
-        'all', help='Run all preprocessing steps'
-    )
-    all_parser.add_argument(
-        '--data_root', type=str, default='data/l2arctic',
-        help='L2-ARCTIC dataset root directory'
-    )
-    all_parser.add_argument(
-        '--output_dir', type=str, default='data',
-        help='Output directory'
-    )
-    all_parser.add_argument(
-        '--test_speakers', nargs='+',
-        default=['TLV', 'NJS', 'TNI', 'TXHC', 'ZHAA', 'YKWK'],
-        help='Speaker IDs for test set'
-    )
-    all_parser.add_argument(
-        '--val_speaker', type=str, default='MBMPS',
-        help='Speaker ID for validation in disjoint split'
-    )
-    all_parser.add_argument(
-        '--num_test_transcripts', type=int, default=100,
-        help='Number of unique transcripts for test set in disjoint split'
-    )
-    
+
     args = parser.parse_args()
-    
+
+    # ===== logging 설정 =====
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
-    
-    if args.command == 'extract':
-        print("Step 1: Extracting phoneme data from L2-ARCTIC...")
-        processor = DatasetProcessor(args.data_root, args.output)
-        processor.process_all_files()
-    
-    elif args.command == 'labels':
-        print("Step 2: Generating error labels...")
-        add_error_labels_to_dataset(args.input, args.output)
-    
-    elif args.command == 'split':
-        output_dir = Path(args.output_dir)
-        phoneme_map_path = output_dir / 'phoneme_to_id.json'
-        
-        if not verify_phoneme_mapping_exists(args.output_dir):
-            return
-        
-        print("Step 3: Creating cross-validation splits...")
-        split_dataset_for_cv(
-            args.input,
-            args.output_dir,
-            str(phoneme_map_path),
-            args.test_speakers
-        )
-    
-    elif args.command == 'split_disjoint':
-        output_dir = Path(args.output_dir)
-        phoneme_map_path = output_dir / 'phoneme_to_id.json'
-        
-        if not verify_phoneme_mapping_exists(args.output_dir):
-            return
-        
-        print("Creating disjoint text split...")
-        split_dataset_disjoint_text(
-            args.input,
-            args.output_dir,
-            str(phoneme_map_path),
-            args.test_speakers,
-            args.val_speaker,
-            args.num_test_transcripts
-        )
-    
-    elif args.command == 'all':
-        print("Running all preprocessing steps...")
-        output_dir = Path(args.output_dir)
-        
-        if not verify_phoneme_mapping_exists(args.output_dir):
-            return
-        
-        print("\nStep 1: Extracting phoneme data...")
-        preprocessed_path = output_dir / 'preprocessed.json'
-        processor = DatasetProcessor(args.data_root, str(preprocessed_path))
-        processor.process_all_files()
-        
-        print("\nStep 2: Generating error labels...")
-        processed_path = output_dir / 'processed_with_error.json'
-        add_error_labels_to_dataset(str(preprocessed_path), str(processed_path))
-        
-        print("\nStep 3: Creating cross-validation splits...")
-        phoneme_map_path = output_dir / 'phoneme_to_id.json'
-        split_dataset_for_cv(
-            str(processed_path),
-            args.output_dir,
-            str(phoneme_map_path),
-            args.test_speakers
-        )
-        
-        print("\nStep 4: Creating disjoint text split...")
-        split_dataset_disjoint_text(
-            str(processed_path),
-            args.output_dir,
-            str(phoneme_map_path),
-            args.test_speakers,
-            args.val_speaker,
-            args.num_test_transcripts
-        )
-        
-        print("\n" + "="*80)
-        print("Preprocessing complete")
-        print("="*80)
-        print("\nGenerated splits:")
-        print("  1. Cross-validation: data/fold_0/, fold_1/, ..., test_labels.json")
-        print("  2. Disjoint text split: data/disjoint_wrd_split/")
-        print("\nNext steps:")
-        print("  - Train with CV: python main.py train --training_mode multitask")
-        print("  - Train with disjoint split: Modify config.py to use disjoint_wrd_split/")
-    
-    else:
-        parser.print_help()
+
+    data_root = Path(args.data_root)
+    output_path = Path(args.output)
+
+    # ===== 기본 체크 =====
+    if not data_root.exists() or not data_root.is_dir():
+        logging.error(f"Data root not found or not a directory: {data_root}")
+        return
+
+    # 상위 디렉토리 생성
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    logging.info("====================================================")
+    logging.info("  L2-ARCTIC perceived-only preprocessing start")
+    logging.info("----------------------------------------------------")
+    logging.info(f"  data_root : {data_root}")
+    logging.info(f"  output    : {output_path}")
+    logging.info("====================================================")
+
+    processor = DatasetProcessor(str(data_root), str(output_path))
+    result = processor.process_all_files()
+
+    logging.info("====================================================")
+    logging.info("  Preprocessing finished")
+    logging.info(f"  Total   files: {processor.total}")
+    logging.info(f"  Success files: {processor.success}")
+    logging.info(f"  Annotation   : {processor.annotation_used}")
+    logging.info(f"  TextGrid     : {processor.textgrid_used}")
+    logging.info("====================================================")
+
+    # 필요하다면 result를 여기서 후처리하거나, 간단 검증을 넣어도 됨.
+    if not result:
+        logging.warning("Result dictionary is empty. "
+                        "Check if TextGrid/wav files are present.")
 
 
 if __name__ == "__main__":
