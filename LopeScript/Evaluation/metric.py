@@ -7,7 +7,7 @@ Levenshtein distance and phoneme error rate (PER).
 
 from typing import List, Sequence
 
-
+# 정답과 예측 사이의 레반슈타인 편집 거리 계산
 def levenshtein_distance(
     ref: Sequence[int],
     hyp: Sequence[int]
@@ -33,12 +33,14 @@ def levenshtein_distance(
     # Initialize first row/column
     for i in range(m + 1):
         dp[i][0] = i  # i deletions
+                      # if hyp is empty, need i deletion to match
     for j in range(n + 1):
         dp[0][j] = j  # j insertions
+                      # if ref is empty, need j insertions to match 
 
     # Fill DP table
-    for i in range(1, m + 1):
-        for j in range(1, n + 1):
+    for i in range(1, m + 1):  # for each ref
+        for j in range(1, n + 1):  # for each hyp
             if ref[i - 1] == hyp[j - 1]:
                 cost = 0
             else:
@@ -49,6 +51,7 @@ def levenshtein_distance(
                 dp[i][j - 1] + 1,      # insertion
                 dp[i - 1][j - 1] + cost  # substitution
             )
+            #   ▲ deletion & insertion always need 1 operation, but substitution may be 0 if same
 
     return dp[m][n]
 
@@ -74,7 +77,7 @@ def utterance_per(
     dist = levenshtein_distance(ref, hyp)
     return dist / float(len(ref))
 
-
+# for multiple utterances
 def corpus_per(
     refs: List[Sequence[int]],
     hyps: List[Sequence[int]]
@@ -93,6 +96,7 @@ def corpus_per(
     Returns:
         Corpus-level PER (0.0 ~ 1.0). Returns 0.0 if total ref length is 0.
     """
+    # check if the lengths are the same
     assert len(refs) == len(hyps), \
         "refs and hyps must have the same number of utterances."
 
