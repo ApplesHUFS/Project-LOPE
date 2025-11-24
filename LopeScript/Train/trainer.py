@@ -1,0 +1,251 @@
+"""Trainer module for pronunciation assessment model.
+
+This module implements the training loop with multitask learning support
+and optimized gradient accumulation.
+"""
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from Utils.audio import (
+    create_attention_mask, 
+    enable_specaugment, 
+    compute_output_lengths
+)
+
+
+class ModelTrainer:
+  """Trainer for multitask pronunciation assessment model."""
+  
+  def __init__(
+      self, 
+      model: nn.Module, 
+      config, 
+      device: str = 'cuda', 
+      logger=None
+  ):
+    """Initializes trainer.
+    
+    Args:
+      model: Model to train.
+      config: Configuration object containing hyperparameters.
+      device: Training device.
+      logger: Logger instance for training logs.
+    """
+    self.model = model
+    self.config = config
+    self.device = device
+    self.logger = logger
+    
+    self._setup_optimizers()
+    self.scaler = torch.amp.GradScaler('cuda')
+  
+  def _setup_optimizers(self):
+    """Sets up optimizers with different learning rates for different parameter groups."""
+    wav2vec_params = []
+    main_params = []
+    
+    for name, param in self.model.named_parameters():
+      if 'encoder.wav2vec2' in name:
+        wav2vec_params.append(param)
+      else:
+        main_params.append(param)
+    
+    self.wav2vec_optimizer = optim.AdamW(
+        wav2vec_params, 
+        lr=self.config.wav2vec_lr
+    )
+    self.main_optimizer = optim.AdamW(
+        main_params, 
+        lr=self.config.main_lr
+    )
+  
+  def _prepare_batch_inputs(self, batch_data):
+    """Prepares batch data for model forward pass.
+    
+    Args:
+      batch_data: Batch dictionary from dataloader.
+      
+    Returns:
+      Tuple of (waveforms, attention_mask, input_lengths).
+    """
+    waveforms = batch_data['waveforms'].to(self.device)
+    audio_lengths = batch_data['audio_lengths'].to(self.device)
+    
+    input_lengths = compute_output_lengths(self.model, audio_lengths)
+    normalized_lengths = audio_lengths.float() / waveforms.shape[1]
+    attention_mask = create_attention_mask(waveforms, normalized_lengths)
+    
+    return waveforms, attention_mask, input_lengths
+  
+  def _prepare_loss_kwargs(self, batch_data, outputs, input_lengths):
+    """Prepares keyword arguments for loss computation.
+    
+    Args:
+      batch_data: Batch dictionary from dataloader.
+      outputs: Model outputs dictionary.
+      input_lengths: Computed input sequence lengths.
+      
+    Returns:
+      Dictionary of keyword arguments for loss function.
+    """
+    kwargs = {}
+    
+    # Perceived targets  
+    perceived_labels = batch_data['perceived_labels'].to(self.device)
+    perceived_lengths = batch_data['perceived_lengths'].to(self.device)
+    perceived_input_lengths = torch.clamp(
+        input_lengths, 
+        min=1, 
+        max=outputs['perceived_logits'].size(1)
+    )
+    kwargs.update({
+        'perceived_targets': perceived_labels,
+        'perceived_input_lengths': perceived_input_lengths,
+        'perceived_target_lengths': perceived_lengths
+    })
+    
+    return kwargs
+  
+  def train_epoch(
+      self, 
+      dataloader: DataLoader, 
+      criterion, 
+      epoch: int
+  ) -> float:
+    """Performs one training epoch.
+    
+    Args:
+      dataloader: Training data loader.
+      criterion: Loss function.
+      epoch: Current epoch number.
+      
+    Returns:
+      Average training loss for the epoch.
+    """
+    self.model.train()
+    loss_components = {}
+    if self.config.wav2vec2_specaug:
+      enable_specaugment(self.model, True)
+
+    total_loss = 0.0
+    progress_bar = tqdm(dataloader, desc=f'Epoch {epoch}')
+
+    for batch_idx, batch_data in enumerate(progress_bar):
+      if batch_data is None:
+        continue
+
+      # Prepare inputs
+      waveforms, attention_mask, input_lengths = self._prepare_batch_inputs(
+          batch_data
+      )
+
+      # Forward pass with mixed precision
+      with torch.amp.autocast('cuda'):
+        outputs = self.model(
+            waveforms, 
+            attention_mask
+        )
+        
+        # Prepare loss arguments
+        kwargs = self._prepare_loss_kwargs(
+            batch_data, 
+            outputs, 
+            input_lengths
+        )
+        
+        loss, loss_dict = criterion(outputs, **kwargs)
+        scaled_loss = loss / self.config.gradient_accumulation
+        
+        # Accumulate loss components for logging
+        for key, value in loss_dict.items():
+          if key not in loss_components:
+            loss_components[key] = []
+          loss_components[key].append(value)
+
+      # Backward pass
+      if scaled_loss > 0:
+        self.scaler.scale(scaled_loss).backward()
+
+      # Optimizer step with gradient accumulation
+      if (batch_idx + 1) % self.config.gradient_accumulation == 0:
+        self.scaler.step(self.wav2vec_optimizer)
+        self.scaler.step(self.main_optimizer)
+        self.scaler.update()
+        self.wav2vec_optimizer.zero_grad()
+        self.main_optimizer.zero_grad()
+
+        total_loss += scaled_loss.item() * self.config.gradient_accumulation
+        
+        # Update progress bar
+        avg_components = {
+            k: sum(v) / len(v) 
+            for k, v in loss_components.items()
+        }
+        progress_bar.set_postfix(avg_components)
+
+      # Periodic memory cleanup
+      if (batch_idx + 1) % 100 == 0:
+        torch.cuda.empty_cache()
+
+    torch.cuda.empty_cache()
+    num_batches = len(dataloader) // self.config.gradient_accumulation
+    return total_loss / num_batches if num_batches > 0 else 0.0
+
+  def validate_epoch(
+      self, 
+      dataloader: DataLoader, 
+      criterion
+  ) -> float:
+    """Performs validation.
+    
+    Args:
+      dataloader: Validation data loader.
+      criterion: Loss function.
+      
+    Returns:
+      Average validation loss.
+    """
+    self.model.eval()
+    enable_specaugment(self.model, False)
+    total_loss = 0.0
+
+    with torch.no_grad():
+      for batch_data in tqdm(dataloader, desc='Validation'):
+        if batch_data is None:
+          continue
+
+        # Prepare inputs
+        waveforms, attention_mask, input_lengths = self._prepare_batch_inputs(
+            batch_data
+        )
+
+        outputs = self.model(
+            waveforms, 
+            attention_mask, 
+            self.config.training_mode
+        )
+
+        # Prepare loss arguments
+        kwargs = self._prepare_loss_kwargs(
+            batch_data, 
+            outputs, 
+            input_lengths
+        )
+
+        loss, _ = criterion(outputs, **kwargs)
+        total_loss += loss.item() if loss > 0 else 0
+
+    torch.cuda.empty_cache()
+    return total_loss / len(dataloader) if len(dataloader) > 0 else 0.0
+
+  def get_optimizers(self):
+    """Returns optimizer instances.
+    
+    Returns:
+      Tuple of (wav2vec_optimizer, main_optimizer).
+    """
+    return self.wav2vec_optimizer, self.main_optimizer
