@@ -41,9 +41,10 @@ def create_attention_mask(
     )
 
     for i in range(batch_size):
-        L = int(valid_lengths[i].item())
+        L = int(valid_lengths[i].item()) # 현재 배치 안의 오디오 길이 반환
         L = max(1, min(L, max_len))  # Safe clamp
         attention_mask[i, :L] = 1
+        # ▲ 실제 L-1까지는 유효 오디오, 나머지는 0 패딩(마스크) 
 
     return attention_mask
 
@@ -62,6 +63,7 @@ def compute_output_lengths(model, audio_lengths: Tensor) -> Tensor:
     Returns:
         output_lengths: Tensor [B]
     """
+    # model 안에 encoder.wav2vec2 가 있는지 확인
     if not (hasattr(model, "encoder") and hasattr(model.encoder, "wav2vec2")):
         raise AttributeError(
             "compute_output_lengths: model.encoder.wav2vec2 not found!"
@@ -70,6 +72,7 @@ def compute_output_lengths(model, audio_lengths: Tensor) -> Tensor:
     wav2vec = model.encoder.wav2vec2
 
     # Wav2Vec2 API returns Python ints → convert to tensor
+    # raw audio 입력 시퀀스 길이를 wav2vec 인코더의 출력 길이(프레임 단위)로 변환해 주는 내부 함수 -> 몇 개의 프레임(feature vector)으로 반환되는지 계산
     out_lengths = wav2vec._get_feat_extract_output_lengths(
         audio_lengths.cpu()
     )
