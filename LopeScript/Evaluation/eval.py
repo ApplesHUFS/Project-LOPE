@@ -167,6 +167,7 @@ def evaluate(
         audio_lengths: Tensor = batch["audio_lengths"].to(device)  # [B]
 
         # Compute encoder output lengths for CTC
+        # raw audio 입력 시퀀스 길이를 wav2vec 인코더의 출력 길이(프레임 단위)로 변환해 줌
         input_lengths: Tensor = compute_output_lengths(
             model, audio_lengths
         )  # [B]
