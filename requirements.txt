@@ -1,0 +1,16 @@
+torch
+torchaudio
+transformers
+numpy
+pandas
+tqdm
+textgrid
+tokenizers
+datasets
+soundfile
+librosa
+pyyaml
+scikit-learn
+hf_transfer
+torchcodec
+nltk

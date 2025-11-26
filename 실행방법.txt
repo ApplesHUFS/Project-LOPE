@@ -1,0 +1,41 @@
+===============================================
+발음 평가 데모 최종 실행 방법
+===============================================
+
+📋 준비사항:
+1. recording/ 폴더에 WAV 파일 저장
+2. 모델 체크포인트 파일 준비
+
+===============================================
+
+🎯 최종 실행 명령어:
+
+방법 1) 간단한 방법 (추천):
+---------------------------
+python run_demo.py
+
+
+방법 2) 직접 명령어:
+---------------------------
+python -m LopeScript.Demo.demo --mode participant --checkpoint checkpoints/best_model.pt
+
+
+방법 3) 특정 파일 지정:
+---------------------------
+python -m LopeScript.Demo.demo --mode participant --checkpoint checkpoints/best_model.pt --audio 파일명.wav
+
+
+===============================================
+
+예시:
+---------------------------
+# 1. 녹음 파일을 recording/ 폴더에 넣기
+recording/my_recording.wav
+
+# 2. 실행
+python run_demo.py
+
+또는
+
+python -m LopeScript.Demo.demo --mode participant --checkpoint checkpoints/best_model.pt
+
