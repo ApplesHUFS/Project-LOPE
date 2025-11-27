@@ -6,9 +6,9 @@ Wav2Vec2 기반 발음 평가 모델.
 ```
 LopeScript/
 ├── DataProc/           # 데이터 전처리 프로세스
-├── Demo/            # 데이터별 음소 평가
-├── Model/    # 모델 인코더 및 통합 모델
-├── Train/         # 모델 학습
+├── Demo/               # 데이터별 음소 평가
+├── Model/              # 모델 인코더 및 통합 모델
+├── Train/              # 모델 학습
 └── Utils/            
 ```
 
