@@ -2,6 +2,14 @@
 
 Wav2Vec2 기반 발음 평가 모델.
 
+## 시스템 아키텍처
+LopeScript/
+├── DataProc/           # 데이터 전처리 프로세스
+├── Demo/            # 데이터별 음소 평가
+├── Model/    # 모델 인코더 및 통합 모델
+├── Train/         # 모델 학습
+└── Utils/            
+
 ## 설치
 
 ```bash
@@ -88,6 +96,10 @@ python -m LopeScript.Demo.demo \
 
 #### 포함된 제3자 저작물
 L2-ARCTIC: a non-native English speech corpus
+
+## 프로젝트 데모 사용법
+데모 파일 사용법에 대해서는 다음 파일을 참고하세요.
+DEMO_GUIDE.md
 
 - 제작자 : Texas A&M University, Iowa State University
 - 출처 : https://psi.engr.tamu.edu/l2-arctic-corpus/
