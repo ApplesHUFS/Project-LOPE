@@ -74,4 +74,23 @@ python -m LopeScript.Demo.demo \
 
 ## License
 
-MIT
+본 프로젝트는 https://creativecommons.org/licenses/by-nc-sa/4.0/ 하에 배포됩니다.
+
+### 라이센스 조건
+#### 저작자 표시
+적절한 출처를 명시하고, 라이선스 링크를 제공하며, 변경 사항이 있을 경우 이를 표시해야 합니다.
+#### 비영리
+본 저작물은 비영리 목적으로만 사용할 수 있으며, 상업적 이용은 허용되지 않습니다.
+#### 동일조건변경허락
+본 저작물을 개작, 변형 또는 가공했을 경우 반드시 원저작물과 동일한 라이센스 조건으로 배포하여야 합니다.
+
+라이센스에 대한 더 자세한 사항은 https://creativecommons.org/licenses/by-nc-sa/4.0/deed.ko에서 확인하세요.
+
+#### 포함된 제3자 저작물
+L2-ARCTIC: a non-native English speech corpus
+
+- 제작자 : Texas A&M University, Iowa State University
+- 출처 : https://psi.engr.tamu.edu/l2-arctic-corpus/
+- 라이센스 : CC BY-NC 4.0
+
+프로젝트에 사용된 L2 arctic 영어 비모국어 음성 코퍼스는  Texas A&M University와 Iowa State University 연구자들이 공동으로 작업한 데이터로 CC BY-NC 4.0 라이선스에 따라 배포됩니다.
