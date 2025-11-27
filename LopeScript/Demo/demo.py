@@ -17,6 +17,12 @@ from ..Evaluation.metric import utterance_per
 from ..Utils.audio import create_attention_mask, compute_output_lengths
 from ..Utils.cmu_dict import get_canonical_phoneme_ids
 
+<<<<<<< HEAD
+=======
+# rank.py 모듈 임포트를 위한 경로 추가
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+>>>>>>> 5a71289 (final update)
 
 def load_single_waveform(path: str, config):
     """단일 WAV 파일 로드 및 전처리.
@@ -439,6 +445,17 @@ def save_result(
         f.write(json_str)
     
     print(f"💾 Result saved to: {result_path}")
+<<<<<<< HEAD
+=======
+    
+    # 순위 자동 업데이트
+    try:
+        import rank
+        print("\n🔄 Updating rankings...")
+        rank.update_rankings(results_dir=results_dir)
+    except Exception as e:
+        print(f"⚠️  Warning: Could not update rankings: {e}")
+>>>>>>> 5a71289 (final update)
 
 
 def main():

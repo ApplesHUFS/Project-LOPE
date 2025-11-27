@@ -40,6 +40,7 @@ pronunciation_assessment/
 
 ### 방법 1: 간편 실행 스크립트 사용 (추천)
 
+<<<<<<< HEAD
 1. **모델 체크포인트 준비**
    ```bash
    # checkpoints 폴더 생성
@@ -48,10 +49,15 @@ pronunciation_assessment/
    ```
 
 2. **문장 녹음**
+=======
+
+Step 1: 문장 녹음
+>>>>>>> 5a71289 (final update)
    - Windows 녹음기를 실행
    - 다음 문장을 명확하게 녹음: **"The quick brown fox jumps over the lazy dog."**
    - `recording/` 폴더에 WAV 형식으로 저장 (예: `participant1.wav`)
 
+<<<<<<< HEAD
 3. **데모 실행**
    ```bash
    python run_demo.py
@@ -65,6 +71,14 @@ python -m LopeScript.Demo.demo \
     --checkpoint checkpoints/best_model.pt \
     --phoneme_map data/phoneme_to_id.json
 ```
+=======
+
+   ```
+
+Step 2: 직접 명령어 사용
+
+python -m LopeScript.Demo.demo --mode participant --checkpoint experiments/best_model.pt --audio (recording.wav 이름적기)
+>>>>>>> 5a71289 (final update)
 
 ---
 
